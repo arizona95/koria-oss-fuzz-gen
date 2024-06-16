@@ -1,0 +1,11 @@
+functions:
+- name: "RelinquishDCMInfo"
+  params:
+  - name: "info"
+    type: "struct DCMInfo *"
+  return_type: "void"
+  signature: "void RelinquishDCMInfo(DCMInfo *)"
+language: "c++"
+project: "imagemagick"
+target_name: "relinquish_dcm_info_fuzzer"
+target_path: "/src/relinquish_dcm_info_fuzzer.cpp"

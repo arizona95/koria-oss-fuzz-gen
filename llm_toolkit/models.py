@@ -34,8 +34,13 @@ from google.api_core.exceptions import GoogleAPICallError
 from vertexai import generative_models
 from vertexai.preview.generative_models import GenerativeModel
 from vertexai.preview.language_models import CodeGenerationModel
-
+from litellm import completion
+import pathlib
+import json
 from llm_toolkit import prompts
+import openpyxl
+from openpyxl import Workbook
+from pathlib import Path
 
 # Model hyper-parameters.
 MAX_TOKENS: int = 2000
@@ -225,6 +230,9 @@ class GPT(LLM):
     """Generates code with OpenAI's API."""
     if self.ai_binary:
       print(f'OpenAI does not use local AI binary: {self.ai_binary}')
+
+   
+    """
     client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
     completion = self.with_retry_on_error(
@@ -238,7 +246,63 @@ class GPT(LLM):
       print(completion)
     for index, choice in enumerate(completion.choices):  # type: ignore
       content = choice.message.content
+
       self._save_output(index, content, response_dir)
+
+    """
+
+    KEY_PATH = pathlib.Path('azure_openai_keys.json')
+    with KEY_PATH.open('r') as f:
+        data = json.loads(f.read())
+
+    os.environ.update(
+        {
+            'AZURE_API_KEY': data['key1'],
+            'AZURE_API_BASE': 'https://koria-azure-openai.openai.azure.com/',
+            'AZURE_API_VERSION': '2024-02-01',
+        }
+    )
+
+    prompt_messages = prompt.get()
+
+    res = completion(
+        model='azure/plain-gpt-4o',
+        messages=prompt_messages,
+    )
+
+    # save
+    #-------------------------------------------------------------------------
+    # 결과를 저장할 디렉토리 설정
+    response_dir = Path(response_dir)
+    parent_dir = response_dir.parents[1]
+    excel_path = parent_dir / 'prompt_history.xlsx'
+
+    # 프롬프트를 문자열로 변환
+    def format_prompt(prompt):
+        formatted_prompts = []
+        for p in prompt:
+            formatted_prompts.append(f"[{p['role']}] : {p['content']}")
+        return "\n\n".join(formatted_prompts)
+
+    formatted_prompt = format_prompt(prompt_messages)
+
+    # 엑셀 파일 열기 또는 새로 생성
+    if excel_path.exists():
+        wb = openpyxl.load_workbook(excel_path)
+        ws = wb.active
+    else:
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Prompt", "Result"])
+    #-------------------------------------------------------------------------
+
+    for index, choice in enumerate(res.choices):  # type: ignore
+      content = choice.message.content
+      ws.append([formatted_prompt, content])
+
+      self._save_output(index, content, response_dir)
+
+    wb.save(excel_path)
 
 
 class GPT4(GPT):
